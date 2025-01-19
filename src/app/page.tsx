@@ -84,7 +84,7 @@ export default function Home() {
           ) : (
             <div className="space-y-6">
               <div className="bg-gray-50 p-4 rounded-md space-y-2">
-                <label className="text-sm text-gray-600 block flex items-center">
+                <label className="text-sm text-gray-600 flex items-center">
                   <Wallet className="w-4 h-4 mr-2" />
                   Wallet Address
                 </label>
@@ -92,7 +92,7 @@ export default function Home() {
               </div>
 
               <div className="bg-gray-50 p-4 rounded-md space-y-2">
-                <label className="text-sm text-gray-600 block flex items-center">
+                <label className="text-sm text-gray-600 flex items-center">
                   <Coins className="w-4 h-4 mr-2" />
                   Token Balance
                 </label>
@@ -105,7 +105,7 @@ export default function Home() {
                 <div className="space-y-2">
                   <label
                     htmlFor="recipient"
-                    className="block text-sm font-medium text-gray-700 flex items-center"
+                    className="text-sm font-medium text-gray-700 flex items-center"
                   >
                     <Send className="w-4 h-4 mr-2" />
                     Recipient Address
@@ -123,7 +123,7 @@ export default function Home() {
                 <div className="space-y-2">
                   <label
                     htmlFor="amount"
-                    className="block text-sm font-medium text-gray-700 flex items-center"
+                    className="text-sm font-medium text-gray-700 flex items-center"
                   >
                     <Coins className="w-4 h-4 mr-2" />
                     Amount (Tokens)
