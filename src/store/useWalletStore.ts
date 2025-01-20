@@ -2,14 +2,13 @@ import { create } from "zustand";
 import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
 import * as anchor from "@project-serum/anchor";
 import {
-  TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddress,
   getAccount,
 } from "@solana/spl-token";
-import { IDL } from "../idl/token_transfer";
+import IDLJson from "../idl/token_transfer.json";
 
 interface WalletState {
   connected: boolean;
@@ -26,7 +25,7 @@ interface WalletState {
 }
 
 const PROGRAM_ID = new PublicKey(
-  "51W7Ur2CJvDqsd8M5EUGKVPxg9LLegs1cuuCtJKwHREx"
+  "4qH7mhLjuhMCKzYCXPLq4RFkzbvETghuh7oFAQjgTM4h"
 );
 const TOKEN_MINT = new PublicKey("JJHbUZgRxPzUuM7uEP52WQ5cjroTnX5GM65ijuNp4Ko");
 
@@ -109,62 +108,84 @@ export const useWalletStore = create<WalletState>((set) => ({
       const { solana } = window as any;
       if (!solana?.isPhantom) return;
 
+      const { decimals } = useWalletStore.getState();
+
       const provider = new anchor.AnchorProvider(connection, solana, {
         commitment: "confirmed",
       });
       anchor.setProvider(provider);
 
-      const program = new anchor.Program(IDL, PROGRAM_ID, provider);
+      const program = new anchor.Program(
+        IDLJson as anchor.Idl,
+        PROGRAM_ID,
+        provider
+      );
+      const recipientKey = new PublicKey(recipientAddress);
 
-      // Create separate transaction for ATA creation
-      const ataTransaction = new anchor.web3.Transaction();
-
+      // Get ATAs
       const sourceTokenAccount = await getAssociatedTokenAddress(
         TOKEN_MINT,
         solana.publicKey,
-        false,
+        true,
         TOKEN_2022_PROGRAM_ID
       );
 
       const destinationTokenAccount = await getAssociatedTokenAddress(
         TOKEN_MINT,
-        new PublicKey(recipientAddress),
-        false,
+        recipientKey,
+        true,
         TOKEN_2022_PROGRAM_ID
       );
 
-      // Check and create ATA if needed
-      try {
-        await getAccount(connection, destinationTokenAccount);
-      } catch {
-        const createAtaIx = createAssociatedTokenAccountInstruction(
-          solana.publicKey,
-          destinationTokenAccount,
-          new PublicKey(recipientAddress),
-          TOKEN_MINT,
-          TOKEN_2022_PROGRAM_ID
+      let transaction = new anchor.web3.Transaction();
+
+      // Get the latest blockhash
+      const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash("finalized");
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = solana.publicKey;
+
+      // Check if destination ATA exists
+      const destinationAccount = await connection.getAccountInfo(
+        destinationTokenAccount
+      );
+      if (!destinationAccount) {
+        transaction.add(
+          createAssociatedTokenAccountInstruction(
+            solana.publicKey,
+            destinationTokenAccount,
+            recipientKey,
+            TOKEN_MINT
+          )
         );
-        await provider.sendAndConfirm(ataTransaction.add(createAtaIx));
       }
 
-      // Create separate transaction for token transfer
-      const transferTransaction = new anchor.web3.Transaction();
+      // Add transfer instruction
       const transferIx = await program.methods
-        .transferSplTokens(new anchor.BN(amount))
+        .transferToken2022(new anchor.BN(amount * Math.pow(10, decimals)))
         .accounts({
           from: solana.publicKey,
           fromAta: sourceTokenAccount,
           toAta: destinationTokenAccount,
+          mint: TOKEN_MINT,
           tokenProgram: TOKEN_2022_PROGRAM_ID,
         })
         .instruction();
 
-      transferTransaction.add(transferIx);
+      transaction.add(transferIx);
 
-      const tx = await provider.sendAndConfirm(transferTransaction);
+      // Add retry logic with timeout
+      const tx = await provider.sendAndConfirm(transaction, [], {
+        maxRetries: 5,
+        skipPreflight: false,
+      });
+
       return tx;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Transaction details:", error);
+      if (error?.logs) {
+        console.error("Transaction logs:", error.logs());
+      }
       throw error;
     }
   },

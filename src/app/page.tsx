@@ -58,7 +58,8 @@ export default function Home() {
       setTransferStatus("success");
       setRecipientAddress("");
       setAmount("");
-      console.log("Transfer successful:", tx);
+      console.log("Transfer successful!");
+      console.log(`https://solscan.io/tx/${tx}?cluster=devnet`);
     } catch (error) {
       setTransferStatus("error");
       setTransferError((error as Error).message);
